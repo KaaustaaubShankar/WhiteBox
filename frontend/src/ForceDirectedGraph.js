@@ -12,28 +12,69 @@ const ForceDirectedGraph = ({ data, onNodeClick }) => {
     const width = dimensions.width;
     const height = dimensions.height;
     const margin = 50;
+    const textWrapWidth = 100; // Set text wrap width
 
     const color = d3.scaleOrdinal(d3.schemeCategory10);
 
-    const links = data.links.map(d => ({ ...d }));
-    const nodes = data.nodes.map(d => ({ ...d }));
+    // Extract nodes and links from the data
+    const nodesMap = {};
+    const links = data.map(d => {
+      const sourceTitle = d.source.title;
+      const targetTitle = d.target.title;
 
+      // Determine the group for source and target
+      const sourceGroup = d.source.label === "Document" ? 0 : 1;
+      const targetGroup = d.target.label === "Document" ? 0 : 1;
+
+      // Add source and target to nodesMap if not already present
+      if (!nodesMap[sourceTitle]) {
+        nodesMap[sourceTitle] = { id: sourceTitle, group: sourceGroup };
+      }
+      if (!nodesMap[targetTitle]) {
+        nodesMap[targetTitle] = { id: targetTitle, group: targetGroup };
+      }
+
+      // Create the link
+      return {
+        source: sourceTitle,
+        target: targetTitle,
+        value: d.relationship, // Use relationship as the link label
+        distance: sourceGroup === targetGroup ? 1000 : 55 // Very large distance for intra-cluster links
+      };
+    });
+
+    const nodes = Object.values(nodesMap);
+
+    // Create a temporary text element to measure text size
     const textMeasureNode = svg.append('text')
       .style('opacity', 0)
       .style('font-size', '14px');
-    nodes.forEach(node => {
-      textMeasureNode.text(node.id);
-      const bbox = textMeasureNode.node().getBBox();
-      node.radius = Math.max(bbox.width, bbox.height) / 2 + 10;
-    });
 
-    const textMeasureLink = svg.append('text')
-      .style('opacity', 0)
-      .style('font-size', '12px');
-    links.forEach(link => {
-      textMeasureLink.text(link.value);
-      const bbox = textMeasureLink.node().getBBox();
-      link.distance = Math.max(bbox.width, bbox.height) + 40;
+    // Function to wrap text
+    function wrapText(text, width) {
+      const words = text.split(/\s+/).reverse();
+      let line = [];
+      const lines = [];
+
+      while (words.length > 0) {
+        line.push(words.pop());
+        textMeasureNode.text(line.join(" "));
+        const tspan = textMeasureNode.node().getBBox();
+        if (tspan.width > width && line.length > 1) {
+          line.pop();
+          lines.push(line.join(" "));
+          line = [words.pop()];
+        }
+      }
+      lines.push(line.join(" "));
+
+      return lines;
+    }
+
+    nodes.forEach(node => {
+      const lines = wrapText(node.id, textWrapWidth);
+      node.textLines = lines;
+      node.radius = Math.max(...lines.map(line => textMeasureNode.text(line).node().getBBox().height)) / 2;
     });
 
     svg.selectAll("text").remove();
@@ -52,12 +93,12 @@ const ForceDirectedGraph = ({ data, onNodeClick }) => {
 
     const simulation = d3.forceSimulation(nodes)
       .force("link", d3.forceLink(links).id(d => d.id).distance(d => d.distance))
-      .force("charge", d3.forceManyBody())
+      .force("charge", d3.forceManyBody().strength(-800)) // Increase repulsion to spread out nodes
       .force("center", d3.forceCenter(width / 2, height / 2))
       .on("tick", ticked);
 
     const zoom = d3.zoom()
-      .scaleExtent([0.1, 10])
+      .scaleExtent([-10, 200]) // Allow for more zooming in
       .on("zoom", (event) => {
         svg.selectAll('g').attr('transform', event.transform);
       });
@@ -105,10 +146,14 @@ const ForceDirectedGraph = ({ data, onNodeClick }) => {
       .attr("x", d => d.x)
       .attr("y", d => d.y)
       .attr("text-anchor", "middle")
-      .attr("dy", ".35em")
       .style("font-size", "14px")
       .style("pointer-events", "none")
-      .text(d => d.id);
+      .selectAll("tspan")
+      .data(d => d.textLines)
+      .join("tspan")
+      .attr("x", d => d.x)
+      .attr("y", (d, i) => d.y + i * 1.1 * 14) // Adjust vertical spacing based on font size
+      .text(d => d);
 
     function ticked() {
       link

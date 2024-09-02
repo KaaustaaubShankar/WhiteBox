@@ -134,7 +134,7 @@ def answernodes():
 
         # Now that the query is defined, use these at your will
         n = run_query(driver, query)[0]
-        titles=rank_documents_by_summary(n,question).head(5)["title"]
+        titles=rank_documents_by_summary(n,question).head(2)["title"]
 
 
         subgraph_query = f"""MATCH (n:Document)-[r]-(m)
@@ -157,4 +157,4 @@ def answernodes():
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=1234)
+    app.run(host='0.0.0.0', port=8000)
