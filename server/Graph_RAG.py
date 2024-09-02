@@ -5,6 +5,7 @@ from sentence_transformers import SentenceTransformer, util
 import numpy as np
 import pandas as pd
 
+
 app = Flask(__name__)
 CORS(app)
 
@@ -44,14 +45,13 @@ def rank_words_in_question(question, threshold=0.25):
 def init_driver():
     uri = "bolt://localhost:7687"  
     username = "neo4j"         
-    password = "Security.4u"  # Replace with your Neo4j password
+    password = "Security.4u"  
     return GraphDatabase.driver(uri, auth=(username, password))
 
 # Run a Cypher query and return the results
 def run_query(driver, query):
     with driver.session() as session:
         result = session.run(query)
-        print(result)
         n = set()
         edges = []
 
@@ -158,4 +158,3 @@ def answernodes():
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=1234)
-    
