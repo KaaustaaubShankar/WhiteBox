@@ -1,8 +1,10 @@
 from neo4j import GraphDatabase
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, util
 import numpy as np
+import pandas as pd
+
 
 app = Flask(__name__)
 CORS(app)
@@ -50,58 +52,109 @@ def init_driver():
 def run_query(driver, query):
     with driver.session() as session:
         result = session.run(query)
-        
-        nodes = set()
+        n = set()
         edges = []
 
         for record in result:
             # Extract node properties and relationship type
-            node1 = record['n'].get('title') or record['n'].get('id') 
-            node2 = record['m'].get('title') or record['m'].get('id')
+            node1 = record['n']
+            node2 = record['m']
             relation = record['r'].type
 
+            # print('\n',node1.get('title'))
             if node1 is None or node2 is None:
                 print(f"Missing node names in record: {record}")
 
-            nodes.add(node1)
-            nodes.add(node2)
-            edges.append((node1, node2, relation))
+            n.add(node1)
+            edges.append(
+                {'source':{
+                    'title': node1.get('title'),
+                    'summary': node1.get('summary'),
+                    'label': 'Document'
+                    },
+                'target':{
+                    'title': node2.get('id'),
+                    'label': 'Entity'
+                },
+                'relationship': relation
+                }
+            )
 
-        return list(nodes), edges
+        return n, edges
 
-@app.route('/userquestion', methods=['POST'])
-def get_question():
-    data = request.get_json()
-    question = data.get('question')
+def rank_documents_by_summary(related_topic_documents, query):
+    # Extract titles and summaries from the result
+    titles = [doc['title'] for doc in related_topic_documents]
+    texts = [doc['text'] for doc in related_topic_documents]
 
-    return str(question)
+    # Combine title and summary into a single text field for each document
+    combined_texts = [f"{title} {text}" for title, text in zip(titles, texts)]
 
-@app.route('/answernodes', methods=['POST'])
-def main():
-    data = request.get_json()
-    question = data.get('question')
+    # Generate embeddings for the query and combined document texts
+    all_texts = [query] + combined_texts
+    embeddings = model.encode(all_texts, convert_to_tensor=True)
 
-    # Automatically connect to Neo4j using hardcoded credentials
-    driver = init_driver()
+    # Compute cosine similarity between the query embedding and document embeddings
+    query_embedding = embeddings[0]
+    document_embeddings = embeddings[1:]
+    cosine_similarities = util.pytorch_cos_sim(query_embedding, document_embeddings).squeeze().cpu().numpy()
 
-    ranked_words = rank_words_in_question(question)
-    ranked_words = list(map(lambda x: x[0], ranked_words))
+    # Create a DataFrame for easier handling
+    df = pd.DataFrame({
+        'title': titles,
+        'text': texts,
+        'similarity': cosine_similarities
+    })
 
-    query = f"""
-    MATCH (n:Document)-[r]-(m)
-    WHERE m.id IN {ranked_words}
-    """
+    # Rank documents based on similarity scores
+    df_sorted = df.sort_values(by='similarity', ascending=False).reset_index(drop=True)
 
-    query += " RETURN n, r, m LIMIT 1000"
+    return df_sorted
+
+@app.route('/answernodes', methods=['GET'])
+def answernodes():
+    try: 
+            
+        question = "What are the symptoms of lung cancer" #data.get('question')
+
+        # Automatically connect to Neo4j using hardcoded credentials
+        driver = init_driver()
+
+        ranked_words = rank_words_in_question(question)
+        ranked_words = list(map(lambda x: x[0], ranked_words))
+
+        # Build the dynamic Cypher query based on filters
+        query = f"""
+        MATCH (n:Document)-[r]-(m)
+        WHERE m.id IN {ranked_words}
+        """
+
+        # Limit results for performance
+        query += " RETURN n, r, m LIMIT 1000"
+
+        # Now that the query is defined, use these at your will
+        n = run_query(driver, query)[0]
+        titles=rank_documents_by_summary(n,question).head(5)["title"]
 
 
-    # Now that the query is defined, use these at your will
-    nodes, links = run_query(driver, query)
-   
-    driver.close()
+        subgraph_query = f"""MATCH (n:Document)-[r]-(m)
+                        WHERE n.title IN {list(titles)} AND NOT m:Document
+                        RETURN n,r, m
+                        """
+        finalgraph_n, finalgraph_r= run_query(driver, subgraph_query)
+        
+        #this is for the llm
+        finalgraph_n_text = [elem["text"] for elem in finalgraph_n]
+        driver.close()
 
-    return jsonify({'nodes': nodes, 'links': links})
+        #this is for the visualization
+        return jsonify(finalgraph_r)
+
+    
+
+    except Exception as ex:
+        return jsonify({"ERROR":str(ex)})
 
 
 if __name__ == "__main__":
-    main()
+    app.run(host='0.0.0.0', port=1234)
