@@ -41,9 +41,9 @@ def rank_words_in_question(question, threshold=0.25):
 
 # Initialize connection to Neo4j with hardcoded credentials
 def init_driver():
-    uri = "bolt://localhost:7687"  # Replace with your Neo4j URI
-    username = "neo4j"         # Replace with your Neo4j username
-    password = "Security.4u"  # Replace with your Neo4j password
+    uri = "bolt://localhost:7687"  
+    username = "neo4j"         
+    password = "Security.4u"  
     return GraphDatabase.driver(uri, auth=(username, password))
 
 # Run a Cypher query and return the results
@@ -87,13 +87,11 @@ def main():
     ranked_words = rank_words_in_question(question)
     ranked_words = list(map(lambda x: x[0], ranked_words))
 
-    # Build the dynamic Cypher query based on filters
     query = f"""
     MATCH (n:Document)-[r]-(m)
     WHERE m.id IN {ranked_words}
     """
 
-    # Limit results for performance
     query += " RETURN n, r, m LIMIT 1000"
 
 
