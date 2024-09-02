@@ -1,0 +1,8 @@
+mkdir -p ~/neo4j/newdata
+mkdir -p ~/neo4j/backups
+
+cp neo4j.dump ~/neo4j/backups/
+
+docker run --interactive --tty --rm --volume=$HOME/neo4j/newdata:/data --volume=$HOME/neo4j/backups:/backups neo4j:5.23.0 neo4j-admin database load neo4j --from-path=/backups --overwrite-destination=true
+
+docker run --name neo4j -p 7474:7474 -p7687:7687 --volume=$HOME/neo4j/newdata:/data neo4j:5.23.0
