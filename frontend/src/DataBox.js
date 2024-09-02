@@ -1,11 +1,18 @@
 import React from 'react';
 
-const DataBox = () => {
+const DataBox = ({ node }) => {
   return (
     <div className="data-box-content">
       <h2>Data Box</h2>
-      <p>Here you can display data.</p>
-      {/* Add data display logic here */}
+      {node ? (
+        <div>
+          <p><strong>ID:</strong> {node.id}</p>
+          <p><strong>Group:</strong> {node.group}</p>
+          {/* Add more node details if needed */}
+        </div>
+      ) : (
+        <p>No node selected</p>
+      )}
     </div>
   );
 };

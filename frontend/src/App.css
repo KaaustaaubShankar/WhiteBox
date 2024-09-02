@@ -1,35 +1,58 @@
-/* App.css */
+/* Add this to your CSS file (e.g., App.css) */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden; /* Prevent scrolling */
+  font-family: Arial, sans-serif;
+}
+
 .app-container {
   display: flex;
-  padding: 20px;
-  box-sizing: border-box; /* Ensures padding is included in the element's total width and height */
+  flex-direction: column;
   height: 100vh; /* Full viewport height */
 }
 
-.graph-container {
-  flex: 3;
-  max-width: 70%; /* Adjust as needed */
-  border-right: 2px solid black; /* Adds a border on the right side of the graph */
-  padding: 20px; /* Padding around the graph */
-  box-sizing: border-box; /* Ensures padding is included in the element's total width and height */
+.app-header {
+  background-color: #f8f9fa; /* Light background color for the header */
+  padding: 10px 20px;
+  text-align: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  box-sizing: border-box; /* Include padding and border in element's total width and height */
 }
+
+.logo {
+  height: 75px; /* Adjust the height as needed */
+}
+
+.main-content {
+  display: flex;
+  flex: 1;
+  margin-top: 60px; /* Adjust margin to account for the fixed header height */
+  overflow: hidden; /* Prevent overflow */
+}
+
+.graph-container {
+  flex: 2;
+  padding: 10px;
+  overflow: hidden; /* Prevent overflow */
+}
+
+
 
 .info-container {
   flex: 1;
   padding: 20px;
   box-sizing: border-box; /* Ensures padding is included in the element's total width and height */
+  display: flex;
+  flex-direction: column; /* Stacks children vertically */
+  gap: 20px; /* Space between the boxes */
 }
-
-h1 {
-  font-size: 24px;
-  margin: 0; /* Removes default margin to align padding evenly */
-}
-
-p {
-  font-size: 16px;
-  margin: 0; /* Removes default margin to align padding evenly */
-}
-
 
 .box {
   background: #f4f4f4;
@@ -44,7 +67,7 @@ p {
 }
 
 .chat-box {
-  flex: 1;
+  flex: 2;
   display: flex;
   flex-direction: column; /* Stacks chat messages and input vertically */
 }
