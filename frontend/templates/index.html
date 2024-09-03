@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neovis.js Layout Example</title>
+    <title>Vis.js Layout Example with Arrows</title>
     <style type="text/css">
         html,
         body {
@@ -89,8 +89,7 @@
         <div class="additional-section">
             <div class="box summary-box">
                 <h3>Summary</h3>
-                <p>This is the summary section where you can provide an overview or key information.</p>
-                <!-- Add more content as needed -->
+                <p id="summaryContent">This is the summary section where you can provide an overview or key information.</p>
             </div>
             <div class="box chat-box">
                 <div class="chat-messages" id="chatMessages">
@@ -104,28 +103,53 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/neovis.js@2.0.2"></script>
+    <!-- Include Vis.js -->
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
     <script type="text/javascript">
-        let neoViz;
-
         function draw() {
-            const config = {
-                containerId: "viz",
-                neo4j: {
-                    serverUrl: "neo4j://f9abbebf.databases.neo4j.io",
-                    serverUser: "neo4j",
-                    serverPassword: "sF2U5HO-3zyrCrwRRYKkTu9G-TTHZlh4kRL5_HFbRqQ",
-                    driverConfig: {
-                        encrypted:"ENCRYPTION_ON",
-                        trust:"TRUST_SYSTEM_CA_SIGNED_CERTIFICATES"
-                    } , 
-                },
-                serverDatabase: "neo4j",
-                initialCypher: "MATCH (n)-[r]-(m) RETURN n,r,m LIMIT 1000",
-            };
+            // Create nodes and edges for Vis.js network
+            const nodes = new vis.DataSet([
+                { id: 1, label: 'Node 1' },
+                { id: 2, label: 'Node 2' },
+                { id: 3, label: 'Node 3' },
+                { id: 4, label: 'Node 4' },
+                { id: 5, label: 'Node 5' }
+            ]);
 
-            neoViz = new NeoVis.default(config);
-            neoViz.render();
+            const edges = new vis.DataSet([
+                { from: 1, to: 3, arrows: 'to' },
+                { from: 1, to: 2, arrows: 'to' },
+                { from: 2, to: 4, arrows: 'to' },
+                { from: 2, to: 5, arrows: 'to' }
+            ]);
+
+            // Create a network
+            const container = document.getElementById('viz');
+            const data = {
+                nodes: nodes,
+                edges: edges
+            };
+            const options = {
+                edges: {
+                    arrows: {
+                        to: { enabled: true, scaleFactor: 1.2 } // Arrows on the 'to' side of the edge
+                    },
+                    color: 'lightblue',
+                    smooth: {
+                        type: 'dynamic'
+                    }
+                }
+            };
+            const network = new vis.Network(container, data, options);
+
+            // Add onClick event
+            network.on("click", function (params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    document.getElementById('summaryContent').textContent = `You clicked on Node with ID: ${nodeId}`;
+                }
+            });
         }
 
         function sendMessage() {
