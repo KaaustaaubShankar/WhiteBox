@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neovis.js Layout Example</title>
+    <style type="text/css">
+        html,
+        body {
+            font: 16pt Arial;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            padding: 0;
+            min-width: 100%;
+        }
+
+        .graph-container {
+            width: 70%;
+            border: 1px solid lightgray;
+        }
+
+        .additional-section {
+            width: 30%;
+            border: 1px solid lightgray;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .box {
+            border: 1px solid lightgray;
+            padding: 10px;
+            margin-bottom: 10px;
+            flex: 1;
+        }
+
+        .summary-box {
+            height: 40%;
+        }
+
+        .chat-box {
+            height: 60%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            border: 1px solid lightgray;
+            height: 100%;
+            overflow-y: auto;
+            padding: 10px;
+            margin-bottom: 10px;
+            flex: 1;
+        }
+
+        .chat-input {
+            display: flex;
+            align-items: center;
+        }
+
+        .chat-input textarea {
+            flex: 1;
+            margin-right: 10px;
+            height: 40px;
+        }
+
+        .chat-input button {
+            height: 40px;
+        }
+
+        #viz {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body onload="draw()">
+    <div class="container">
+        <div class="graph-container">
+            <div id="viz"></div>
+        </div>
+        <div class="additional-section">
+            <div class="box summary-box">
+                <h3>Summary</h3>
+                <p>This is the summary section where you can provide an overview or key information.</p>
+                <!-- Add more content as needed -->
+            </div>
+            <div class="box chat-box">
+                <div class="chat-messages" id="chatMessages">
+                    <!-- Chat messages will be displayed here -->
+                </div>
+                <div class="chat-input">
+                    <textarea id="chatInput" placeholder="Type your message..."></textarea>
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/neovis.js@2.0.2"></script>
+    <script type="text/javascript">
+        let neoViz;
+
+        function draw() {
+            const config = {
+                containerId: "viz",
+                neo4j: {
+                    serverUrl: "neo4j://f9abbebf.databases.neo4j.io",
+                    serverUser: "neo4j",
+                    serverPassword: "sF2U5HO-3zyrCrwRRYKkTu9G-TTHZlh4kRL5_HFbRqQ",
+                    driverConfig: {
+                        encrypted:"ENCRYPTION_ON",
+                        trust:"TRUST_SYSTEM_CA_SIGNED_CERTIFICATES"
+                    } , 
+                },
+                serverDatabase: "neo4j",
+                initialCypher: "MATCH (n)-[r]-(m) RETURN n,r,m LIMIT 1000",
+            };
+
+            neoViz = new NeoVis.default(config);
+            neoViz.render();
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('chatInput');
+            const messagesContainer = document.getElementById('chatMessages');
+
+            if (messageInput.value.trim() !== "") {
+                // Append user's message
+                const userMessage = document.createElement('p');
+                userMessage.textContent = `You: ${messageInput.value}`;
+                userMessage.style.textAlign = 'right';
+                messagesContainer.appendChild(userMessage);
+
+                // Simulate a response from the other person
+                setTimeout(() => {
+                    const responseMessage = document.createElement('p');
+                    responseMessage.textContent = `Other Person: ${generateResponse()}`;
+                    responseMessage.style.textAlign = 'left';
+                    messagesContainer.appendChild(responseMessage);
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }, 1000); // Simulate a 1 second delay for the response
+
+                messageInput.value = "";
+            }
+        }
+
+        function generateResponse() {
+            const responses = [
+                "Hello! How can I help you today?",
+                "I'm here to assist with your queries.",
+                "Can you please provide more details?",
+                "Sure, I can help with that.",
+                "What else would you like to know?"
+            ];
+            const randomIndex = Math.floor(Math.random() * responses.length);
+            return responses[randomIndex];
+        }
+    </script>
+</body>
+
+</html>
