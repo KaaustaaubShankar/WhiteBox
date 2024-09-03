@@ -1,9 +1,11 @@
 from neo4j import GraphDatabase
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from sentence_transformers import SentenceTransformer, util
 import numpy as np
 import pandas as pd
+import json
+import time
 
 
 app = Flask(__name__)
@@ -52,40 +54,15 @@ def init_driver():
 def run_query(driver, query):
     with driver.session() as session:
         result = session.run(query)
-        n = set()
-        edges = []
+        # Convert the result to a list of dictionaries
+        records = [record.data() for record in result]
+    return records
 
-        for record in result:
-            # Extract node properties and relationship type
-            node1 = record['n']
-            node2 = record['m']
-            relation = record['r'].type
-
-            # print('\n',node1.get('title'))
-            if node1 is None or node2 is None:
-                print(f"Missing node names in record: {record}")
-
-            n.add(node1)
-            edges.append(
-                {'source':{
-                    'title': node1.get('title'),
-                    'summary': node1.get('summary'),
-                    'label': 'Document'
-                    },
-                'target':{
-                    'title': node2.get('id'),
-                    'label': 'Entity'
-                },
-                'relationship': relation
-                }
-            )
-
-        return n, edges
 
 def rank_documents_by_summary(related_topic_documents, query):
     # Extract titles and summaries from the result
-    titles = [doc['title'] for doc in related_topic_documents]
-    texts = [doc['text'] for doc in related_topic_documents]
+    titles = [doc['node']['title'] for doc in related_topic_documents]
+    texts = [doc['node']['text'] for doc in related_topic_documents]
 
     # Combine title and summary into a single text field for each document
     combined_texts = [f"{title} {text}" for title, text in zip(titles, texts)]
@@ -111,50 +88,105 @@ def rank_documents_by_summary(related_topic_documents, query):
 
     return df_sorted
 
-@app.route('/answernodes', methods=['GET'])
-def answernodes():
-    try: 
-            
-        question = "What are the symptoms of lung cancer" #data.get('question')
+def generate_nodes_stream(question):
+    try:
+        if not question:
+            yield "data: {\"ERROR\": \"No question provided\"}\n\n"
+            return
 
-        # Automatically connect to Neo4j using hardcoded credentials
         driver = init_driver()
 
         ranked_words = rank_words_in_question(question)
         ranked_words = list(map(lambda x: x[0], ranked_words))
 
-        # Build the dynamic Cypher query based on filters
         query = f"""
         MATCH (n:Document)-[r]-(m)
         WHERE m.id IN {ranked_words}
+        RETURN id(n) AS node_id, n AS node
         """
+        result = run_query(driver, query)
+        n = [{'node_id': record['node_id'], 'node': record['node']} for record in result]  
 
-        # Limit results for performance
-        query += " RETURN n, r, m LIMIT 1000"
+        relevant_documents = [record['text'] for record in n]
 
-        # Now that the query is defined, use these at your will
-        n = run_query(driver, query)[0]
-        titles=rank_documents_by_summary(n,question).head(2)["title"]
-
+        titles = rank_documents_by_summary(relevant_documents, question).head(3)["title"]
 
         subgraph_query = f"""MATCH (n:Document)-[r]-(m)
                         WHERE n.title IN {list(titles)} AND NOT m:Document
-                        RETURN n,r, m
+                        RETURN id(n) as source_id, n.title as source_title, id(m) as target_id, m.id as target_title, r as rel_type;
                         """
-        finalgraph_n, finalgraph_r= run_query(driver, subgraph_query)
-        
-        #this is for the llm
-        finalgraph_n_text = [elem["text"] for elem in finalgraph_n]
+        finalgraph_n = run_query(driver, subgraph_query)
+
+        for i in finalgraph_n:
+            final_nodes = {
+                'source_id': i['source_id'],
+                'source_title': i['source_title'],
+                'target_id': i['target_id'],
+                'target_title': i['target_title'],
+                'rel_type': i['rel_type'][1]
+            }
+            yield f"data: {json.dumps(final_nodes)}\n\n"
+            time.sleep(1)  
+
+        phi3_response = call_phi3(relevant_documents, question)
+        for chunk in phi3_response:
+            yield f"data: {chunk}\n\n"
+
         driver.close()
 
-        #this is for the visualization
-        return jsonify(finalgraph_r)
+    except Exception as ex:
+        yield f"data: {json.dumps({'ERROR': str(ex)})}\n\n"
 
-    
+@app.route('/getNodes', methods=['GET'])
+def get_nodes():
+    question = "What are the symptoms of lung cancer?"  # This can be dynamic, e.g., from request.args
+    return Response(generate_nodes_stream(question), mimetype='text/event-stream') 
+
+@app.route('/phiRequirements', methods=['POST'])
+def call_phi3():
+    data = request.get_json()
+    relevant_documents = data.get('relevant_documents')
+    question = data.get('question')
+
+    if not relevant_documents or not question:
+        return jsonify({"ERROR": "Missing relevant_documents or question"}), 400
+
+    phi3_output = f"Processed {len(relevant_documents)} documents with question: {question}"
+
+    # Stream the response if needed
+    return Response(f"data: {phi3_output}\n\n", mimetype='text/event-stream')
+
+@app.route('/getSummaries', methods=['GET'])
+def get_summaries():
+    # Extract the node ID from query parameters
+    node_id = request.args.get('id')
+
+    if not node_id:
+        return jsonify({"ERROR": "Node ID is required"}), 400
+
+    try:
+        driver = init_driver()
+        query = f"""
+        MATCH (n:Document)
+        WHERE id(n) = {node_id}
+        RETURN n.title AS title, n.text AS text
+        """
+        result = run_query(driver, query)
+
+        if not result:
+            return jsonify({"ERROR": "Node not found"}), 404
+
+        node_data = result[0]  # Assuming only one node with the given ID
+        summary = {
+            "title": node_data.get("title"),
+            "text": node_data.get("text")
+        }
+
+        driver.close()
+        return jsonify(summary)
 
     except Exception as ex:
-        return jsonify({"ERROR":str(ex)})
-
+        return jsonify({"ERROR": str(ex)}), 500
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8000)
+    app.run(host='0.0.0.0', port=8000, debug=True)
