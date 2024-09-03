@@ -2,11 +2,6 @@ from fuzzywuzzy import fuzz
 from neo4j import GraphDatabase
 
 LABELS_QUERY="CALL db.labels() YIELD label RETURN label"
-SWAPPING_QUERY=f"""MATCH (n)
-WHERE n:Label1 OR n:Label2
-SET n:Label1
-REMOVE n:Label2
-"""
 
 uri = "neo4j+s://f9abbebf.databases.neo4j.io"  
 username = "neo4j"         
