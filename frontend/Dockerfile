@@ -1,14 +1,15 @@
-# Use an official Node.js runtime as a parent image
-FROM node:18-slim
+FROM python:3.11-slim
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy package.json and package-lock.json into the container
-COPY package*.json ./
+COPY requirements.txt . 
+#Im assuming we don't need this anymore ^
 
-# Install npm dependencies
-RUN npm install
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code into the container
 COPY . .
+
+EXPOSE 80
+
+# Run the application when the container launches
+CMD ["python", "app.py"]
