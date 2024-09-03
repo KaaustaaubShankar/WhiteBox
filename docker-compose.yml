@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  react-app:
+    build:
+      context: ./frontend  # Path to the React app Dockerfile
+    ports:
+      - "3000:3000"  # Map port 3000 in the container to port 3000 on the host
+    volumes:
+      - ./frontend:/app  # Mount the React app directory for live updates (optional)
+    depends_on:
+      - python-backend  # Ensure the backend is up before starting the frontend
+
+  python-backend:
+    build:
+      context: ./server  # Path to the Python backend Dockerfile
+    ports:
+      - "8000:8000"  # Map port 8000 in the container to port 8000 on the host
+    volumes:
+      - ./python-backend:/app  # Mount the Python backend directory for live updates (optional)
+    environment:
+      - PORT=8000  # Set environment variable for the port
+
