@@ -164,14 +164,15 @@
         <div class="additional-section d-flex flex-column">
             <div class="summary-box">
                 <h3 class="mb-3">Summary</h3>
-                <p id="summaryContent">This is the summary section where you can provide an overview or key information.</p>
+                <p id="summaryContent">This is the summary section where you can provide an overview or key information.
+                </p>
             </div>
             <div class="chat-box d-flex flex-column">
                 <div class="chat-messages" id="chatMessages">
                     <!-- Chat messages will be displayed here -->
                 </div>
                 <div class="chat-input">
-                    <textarea id="chatInput" class="form-control" placeholder="Type your message..."></textarea>
+                    <textarea id="chatInput" class="form-control" placeholder="Type your question..."></textarea>
                     <button class="btn btn-primary" onclick="sendMessage()">Send</button>
                 </div>
             </div>
@@ -184,9 +185,37 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/7.3.2/mdb.min.js"></script>
     <!-- Bootstrap JS -->
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-
     <script>
         let network;
+
+        function convertToVisData(inputList) {
+            const nodesMap = new Map(); // Use a Map to keep track of unique nodes
+            const edges = [];
+
+            inputList.forEach(item => {
+                // Add source node
+                if (!nodesMap.has(item.source_id)) {
+                    nodesMap.set(item.source_id, { id: item.source_id, label: item.source_title });
+                }
+
+                // Add target node
+                if (!nodesMap.has(item.target_id)) {
+                    nodesMap.set(item.target_id, { id: item.target_id, label: item.target_title });
+                }
+
+                // Add edge
+                edges.push({
+                    from: item.source_id,
+                    to: item.target_id,
+                    label: item.rel_type
+                });
+            });
+
+            return {
+                nodes: Array.from(nodesMap.values()), // Convert Map values to an array
+                edges: edges
+            };
+        }
 
         function draw(data) {
             const nodes = new vis.DataSet(data.nodes);
@@ -201,9 +230,18 @@
                     color: '#007bff',
                     smooth: {
                         type: 'dynamic'
+                    },
+
+                    physics: {
+                        barnesHut: {
+                            "gravitationalConstant": -3900,
+                            "centralGravity": 0
+                        },
+                        minVelocity: 1
                     }
                 },
                 nodes: {
+                    shape: 'circle',  // Set the shape of the nodes to circles
                     color: {
                         border: '#007bff',
                         background: '#ffffff',
@@ -213,56 +251,146 @@
                         }
                     },
                     font: {
-                        color: '#343a40'
+                        color: '#343a40',
+                        size: 14,
+                        face: 'Nunito',
+                        multi: true,  // Enable multi-line text
+                        align: 'center'
+                    },
+                    margin: 10,  // Margin around text
+                    widthConstraint: {
+                        maximum: 100  // Max width for text wrapping (adjust as needed)
+                    },
+                    heightConstraint: {
+                        minimum: 30,  // Minimum height for node (adjust as needed)
+                        valign: 'middle'
                     }
                 }
             };
+
             network = new vis.Network(container, { nodes, edges }, options);
+
+            // Add a click event listener to nodes
+            network.on("click", function (params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    fetchSummary(nodeId);
+                }
+            });
         }
 
-        function fetchGraphData() {
-            return fetch('http://127.0.0.1:8000/graph_data')
+        function fetchGraphData(question) {
+            return fetch('http://127.0.0.1:8000/getNodes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ question: question })
+            })
                 .then(response => response.json())
                 .catch(error => {
                     console.error('Error fetching graph data:', error);
-                    return { nodes: [], edges: [] }; // Return empty data on error
+                    return null;
+                });
+        }
+
+        async function initializeGraph(question) {
+            const spinner = document.getElementById('loadingSpinner');
+            spinner.style.display = 'block'; // Show the spinner
+
+            const graphData = await fetchGraphData(question);
+
+            if (graphData) {
+                const visData = convertToVisData(graphData.data);
+                draw(visData);
+            }
+
+            spinner.style.display = 'none'; // Hide the spinner
+        }
+
+        function fetchSummary(nodeId) {
+            fetch(`/getSummaries?id=${nodeId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    document.getElementById('summaryContent').textContent = data.summary;
+                })
+                .catch(error => {
+                    console.error('Error fetching summary:', error);
+                    document.getElementById('summaryContent').textContent = `Summary not available for node ${nodeId}.`;
                 });
         }
 
         async function sendMessage() {
-            const messageInput = document.getElementById('chatInput');
-            const messagesContainer = document.getElementById('chatMessages');
-            const loadingSpinner = document.getElementById('loadingSpinner');
+    const messageInput = document.getElementById('chatInput');
+    const messagesContainer = document.getElementById('chatMessages');
+    const loadingSpinner = document.getElementById('loadingSpinner');
 
-            if (messageInput.value.trim() !== "") {
-                const userMessage = document.createElement('div');
-                userMessage.className = 'chat-message';
-                userMessage.innerHTML = `<div class="card">
-                                             <p class="mb-0">You: ${messageInput.value}</p>
+    if (messageInput.value.trim() !== "") {
+        // Append user message to the chat
+        const userMessage = document.createElement('div');
+        userMessage.className = 'chat-message';
+        userMessage.innerHTML = `<div class="card">
+                                 <p class="mb-0">You: ${messageInput.value}</p>
+                             </div>`;
+        messagesContainer.appendChild(userMessage);
+
+        // Show loading spinner
+        loadingSpinner.style.display = 'block';
+
+        try {
+            // Send the message to the server
+            const graphData = await fetchGraphData(messageInput.value);
+
+            // Check if graphData is valid
+            if (graphData && graphData.data) {
+                // Fetch and draw the graph
+                draw(convertToVisData(graphData.data));
+
+                // Append the response to the chat box
+                const responseMessage = document.createElement('div');
+                responseMessage.className = 'chat-message';
+                responseMessage.innerHTML = `<div class="response-message">
+                                             <p>${graphData.answer || 'No answer received.'}</p>
                                          </div>`;
-                messagesContainer.appendChild(userMessage);
-
-                // Show loading spinner
-                loadingSpinner.style.display = 'block';
-
-                try {
-                    // Fetch graph data from API
-                    const graphData = await fetchGraphData();
-                    draw(graphData);
-                } catch (error) {
-                    console.error('Error updating graph:', error);
-                } finally {
-                    // Hide loading spinner
-                    loadingSpinner.style.display = 'none';
-                }
-
-                // Clear the input field
-                messageInput.value = "";
-
-                // Scroll to the bottom
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                messagesContainer.appendChild(responseMessage);
+            } else {
+                // Handle invalid data or no data scenario
+                const errorMessage = document.createElement('div');
+                errorMessage.className = 'chat-message';
+                errorMessage.innerHTML = `<div class="response-message">
+                                             <p>Error: No data received.</p>
+                                         </div>`;
+                messagesContainer.appendChild(errorMessage);
             }
+
+        } catch (error) {
+            console.error('Error updating graph:', error);
+
+            // Append error message to the chat box
+            const errorMessage = document.createElement('div');
+            errorMessage.className = 'chat-message';
+            errorMessage.innerHTML = `<div class="response-message">
+                                         <p>Error: ${error.message}</p>
+                                     </div>`;
+            messagesContainer.appendChild(errorMessage);
+        } finally {
+            // Hide loading spinner
+            loadingSpinner.style.display = 'none';
         }
+
+        // Clear the input field
+        messageInput.value = "";
+
+        // Scroll to the bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+}
+
     </script>
 </body>
 
