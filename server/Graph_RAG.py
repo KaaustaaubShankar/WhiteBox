@@ -61,8 +61,8 @@ def run_query(driver, query):
 
 def rank_documents_by_summary(related_topic_documents, query):
     # Extract titles and summaries from the result
-    titles = [doc['node']['title'] for doc in related_topic_documents]
-    texts = [doc['node']['text'] for doc in related_topic_documents]
+    titles = [doc['title'] for doc in related_topic_documents]
+    texts = [doc['text'] for doc in related_topic_documents]
 
     # Combine title and summary into a single text field for each document
     combined_texts = [f"{title} {text}" for title, text in zip(titles, texts)]
@@ -91,8 +91,8 @@ def rank_documents_by_summary(related_topic_documents, query):
 def generate_nodes_stream(question):
     try:
         if not question:
-            yield "data: {\"ERROR\": \"No question provided\"}\n\n"
-            return
+            return jsonify({"data": {"ERROR": "No question provided"}})
+            
 
         driver = init_driver()
 
@@ -102,12 +102,16 @@ def generate_nodes_stream(question):
         query = f"""
         MATCH (n:Document)-[r]-(m)
         WHERE m.id IN {ranked_words}
-        RETURN id(n) AS node_id, n AS node
+        RETURN n.title as title, n.text as text
         """
         result = run_query(driver, query)
-        n = [{'node_id': record['node_id'], 'node': record['node']} for record in result]  
+        nodes = set()
+        for i in result:
+            nodes.add((i['title'], i['text']))
 
-        relevant_documents = [record['text'] for record in n]
+        relevant_documents = [{'title': record[0], 'text': record[1]} for record in nodes]  
+
+        # relevant_documents = [record['text'] for record in n]
 
         titles = rank_documents_by_summary(relevant_documents, question).head(3)["title"]
 
@@ -117,44 +121,47 @@ def generate_nodes_stream(question):
                         """
         finalgraph_n = run_query(driver, subgraph_query)
 
+        final_nodes=[]
+
         for i in finalgraph_n:
-            final_nodes = {
+            final_nodes.append({
                 'source_id': i['source_id'],
                 'source_title': i['source_title'],
                 'target_id': i['target_id'],
                 'target_title': i['target_title'],
                 'rel_type': i['rel_type'][1]
-            }
-            yield f"data: {json.dumps(final_nodes)}\n\n"
-            time.sleep(1)  
-
-        phi3_response = call_phi3(relevant_documents, question)
-        for chunk in phi3_response:
-            yield f"data: {chunk}\n\n"
+            })
 
         driver.close()
+        return final_nodes 
+            
+
+        # phi3_response = call_phi3(relevant_documents, question)
+        # for chunk in phi3_response:
+        #     yield f"data: {chunk}\n\n"
+
 
     except Exception as ex:
-        yield f"data: {json.dumps({'ERROR': str(ex)})}\n\n"
+        return jsonify({"data":ex})
 
-@app.route('/getNodes', methods=['GET'])
+@app.route('/getNodes', methods=['POST'])
 def get_nodes():
-    question = "What are the symptoms of lung cancer?"  # This can be dynamic, e.g., from request.args
-    return Response(generate_nodes_stream(question), mimetype='text/event-stream') 
+    question = request.json.get('question') # This can be dynamic, e.g., from request.args
+    return jsonify({"data":generate_nodes_stream(question)}) 
 
-@app.route('/phiRequirements', methods=['POST'])
-def call_phi3():
-    data = request.get_json()
-    relevant_documents = data.get('relevant_documents')
-    question = data.get('question')
+# @app.route('/phiRequirements', methods=['POST'])
+# def call_phi3():
+#     data = request.get_json()
+#     relevant_documents = data.get('relevant_documents')
+#     question = data.get('question')
 
-    if not relevant_documents or not question:
-        return jsonify({"ERROR": "Missing relevant_documents or question"}), 400
+#     if not relevant_documents or not question:
+#         return jsonify({"ERROR": "Missing relevant_documents or question"}), 400
 
-    phi3_output = f"Processed {len(relevant_documents)} documents with question: {question}"
+#     phi3_output = f"Processed {len(relevant_documents)} documents with question: {question}"
 
-    # Stream the response if needed
-    return Response(f"data: {phi3_output}\n\n", mimetype='text/event-stream')
+#     # Stream the response if needed
+    # return Response(f"data: {phi3_output}\n\n", mimetype='text/event-stream')
 
 @app.route('/getSummaries', methods=['GET'])
 def get_summaries():
@@ -176,7 +183,7 @@ def get_summaries():
         if not result:
             return jsonify({"ERROR": "Node not found"}), 404
 
-        node_data = result[0]  # Assuming only one node with the given ID
+        node_data = result
         summary = {
             "title": node_data.get("title"),
             "text": node_data.get("text")

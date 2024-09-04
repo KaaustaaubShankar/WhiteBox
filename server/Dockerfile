@@ -10,5 +10,4 @@ COPY . .
 
 EXPOSE 80
 
-# Run the application when the container launches
 CMD ["python", "Graph_RAG.py"]
