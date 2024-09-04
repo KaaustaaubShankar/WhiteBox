@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import json
 import time
+from transformers import pipeline
 
 
 app = Flask(__name__)
@@ -111,16 +112,29 @@ def generate_nodes_stream(question):
 
         relevant_documents = [{'title': record[0], 'text': record[1]} for record in nodes]  
 
+
         # relevant_documents = [record['text'] for record in n]
 
         titles = rank_documents_by_summary(relevant_documents, question).head(3)["title"]
+        
+        phi3_query = f"""MATCH (n:Document)-[r]-(m)
+                    WHERE n.title IN {list(titles)} AND NOT m:Document
+                    RETURN n.title as title, n.text as text;
+                    """
+        result = run_query(driver, phi3_query)
+        nodes = set()
+        for i in result:
+            nodes.add((i['title'], i['text']))
+        relevant_documents_phi = [{'title': record[0], 'text': record[1]} for record in nodes]  
 
+        phi3_answer = call_phi3(relevant_documents_phi, question)
+        
         subgraph_query = f"""MATCH (n:Document)-[r]-(m)
                         WHERE n.title IN {list(titles)} AND NOT m:Document
                         RETURN id(n) as source_id, n.title as source_title, id(m) as target_id, m.id as target_title, r as rel_type;
                         """
         finalgraph_n = run_query(driver, subgraph_query)
-
+        
         final_nodes=[]
 
         for i in finalgraph_n:
@@ -133,7 +147,7 @@ def generate_nodes_stream(question):
             })
 
         driver.close()
-        return final_nodes 
+        return final_nodes, phi3_answer 
             
 
         # phi3_response = call_phi3(relevant_documents, question)
@@ -142,26 +156,28 @@ def generate_nodes_stream(question):
 
 
     except Exception as ex:
-        return jsonify({"data":ex})
+        return jsonify({"data":str(ex)})
 
 @app.route('/getNodes', methods=['POST'])
 def get_nodes():
-    question = request.json.get('question') # This can be dynamic, e.g., from request.args
-    return jsonify({"data":generate_nodes_stream(question)}) 
+    question = request.json.get('question') 
+    response = generate_nodes_stream(question)
+    print(response)
+    return jsonify({"data":response[0], "answer":response[1]}) 
 
-# @app.route('/phiRequirements', methods=['POST'])
-# def call_phi3():
-#     data = request.get_json()
-#     relevant_documents = data.get('relevant_documents')
-#     question = data.get('question')
+def call_phi3(relevant_documents, question):
+    if not relevant_documents or not question:
+        return jsonify({"ERROR": "Missing relevant_documents or question"}), 400
 
-#     if not relevant_documents or not question:
-#         return jsonify({"ERROR": "Missing relevant_documents or question"}), 400
+    model_name = "microsoft/Phi-3-mini-4k-instruct"
+    model_pipeline = pipeline('text-generation', model=model_name)
 
-#     phi3_output = f"Processed {len(relevant_documents)} documents with question: {question}"
+    
+    input_text = f"Relevant documents: {relevant_documents}\nQuestion: {question}"
 
-#     # Stream the response if needed
-    # return Response(f"data: {phi3_output}\n\n", mimetype='text/event-stream')
+    
+    response = model_pipeline(input_text)
+    return (response[0]['generated_text'])
 
 @app.route('/getSummaries', methods=['GET'])
 def get_summaries():
@@ -180,20 +196,29 @@ def get_summaries():
         """
         result = run_query(driver, query)
 
-        if not result:
-            return jsonify({"ERROR": "Node not found"}), 404
+        # Debugging: Print the query and result for verification
+        print(f"Query: {query}")
+        print(f"Result: {result}")
 
-        node_data = result
+        if not result:
+            driver.close()
+            return jsonify({"ERROR": "Node not found"}), 404  # Corrected status code for not found
+
+        # Assuming the result is a list of dictionaries, get the first record
+        node_data = result[0]
         summary = {
             "title": node_data.get("title"),
             "text": node_data.get("text")
         }
 
         driver.close()
-        return jsonify(summary)
+        return jsonify(summary), 200  # Explicitly return 200 OK status
 
     except Exception as ex:
+        print(f"Exception: {str(ex)}")  # Print exception for debugging
         return jsonify({"ERROR": str(ex)}), 500
+
+
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8000, debug=True)
