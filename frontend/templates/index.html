@@ -4,101 +4,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css?family=Nunito:300,400,600,700&display=swap" rel="stylesheet" />
+    <!-- MDB -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/7.3.2/mdb.min.css" rel="stylesheet" />
+    <!-- Bootstrap -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet" />
     <title>Vis.js Layout Example with Arrows</title>
-    <style type="text/css">
+    <style>
         html,
         body {
-            font: 16pt Arial;
+            height: 100%;
             margin: 0;
             padding: 0;
+            font-family: 'Nunito', sans-serif;
+            background-color: #f7f9fc;
+            color: #343a40;
         }
 
-        .container {
-            display: flex;
+        .container-fluid {
             height: 100vh;
-            padding: 0;
-            min-width: 100%;
+            display: flex;
+            padding: 15px;
+            gap: 15px;
+        }
+
+        .graph-container,
+        .additional-section {
+            height: 100%;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            background-color: #ffffff;
+            position: relative;
         }
 
         .graph-container {
-            width: 70%;
-            border: 1px solid lightgray;
+            flex: 7;
+            background-color: #f0f4f8;
         }
 
         .additional-section {
-            width: 30%;
-            border: 1px solid lightgray;
-            padding: 10px;
+            flex: 3;
             display: flex;
             flex-direction: column;
-        }
-
-        .box {
-            border: 1px solid lightgray;
-            padding: 10px;
-            margin-bottom: 10px;
-            flex: 1;
         }
 
         .summary-box {
-            height: 40%;
+            flex: 0 0 40%;
+            background-color: #e9f1f7;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
+        .summary-box h3 {
+            color: #007bff;
         }
 
         .chat-box {
-            height: 60%;
+            flex: 1;
             display: flex;
             flex-direction: column;
+            background-color: #f8fafc;
+            padding: 20px;
+            border-radius: 10px;
+            overflow: hidden;
         }
 
         .chat-messages {
-            border: 1px solid lightgray;
-            height: 100%;
-            overflow-y: auto;
-            padding: 10px;
-            margin-bottom: 10px;
             flex: 1;
+            overflow-y: auto;
+            padding-right: 10px;
+            margin-bottom: 10px;
+            background-color: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 10px;
         }
 
         .chat-input {
             display: flex;
             align-items: center;
+            gap: 10px;
         }
 
         .chat-input textarea {
             flex: 1;
-            margin-right: 10px;
-            height: 40px;
+            resize: none;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            font-size: 14px;
         }
 
         .chat-input button {
             height: 40px;
+            border-radius: 8px;
+            font-weight: bold;
+            background-color: #007bff;
+            color: #ffffff;
         }
 
         #viz {
             width: 100%;
             height: 100%;
         }
+
+        .chat-message {
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .chat-message .card {
+            background-color: #007bff;
+            color: #fff;
+            border-radius: 20px;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .response-message {
+            background-color: #e9f1f7;
+            color: #333;
+            border-radius: 20px;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .response-message p {
+            margin: 0;
+        }
+
+        .loading-spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #007bff;
+            display: none;
+        }
     </style>
 </head>
 
-<body onload="draw()">
-    <div class="container">
+<body>
+    <div class="container-fluid">
         <div class="graph-container">
             <div id="viz"></div>
-        </div>
-        <div class="additional-section">
-            <div class="box summary-box">
-                <h3>Summary</h3>
-                <p>This is the summary section where you can provide an overview or key information.</p>
-                <!-- Add more content as needed -->
+            <div class="loading-spinner" id="loadingSpinner">
+                <i class="fas fa-spinner fa-spin"></i> Loading...
             </div>
-            <div class="box chat-box">
+        </div>
+        <div class="additional-section d-flex flex-column">
+            <div class="summary-box">
+                <h3 class="mb-3">Summary</h3>
+                <p id="summaryContent">This is the summary section where you can provide an overview or key information.</p>
+            </div>
+            <div class="chat-box d-flex flex-column">
                 <div class="chat-messages" id="chatMessages">
                     <!-- Chat messages will be displayed here -->
                 </div>
                 <div class="chat-input">
-                    <textarea id="chatInput" placeholder="Type your message..."></textarea>
-                    <button onclick="sendMessage()">Send</button>
+                    <textarea id="chatInput" class="form-control" placeholder="Type your message..."></textarea>
+                    <button class="btn btn-primary" onclick="sendMessage()">Send</button>
                 </div>
             </div>
         </div>
@@ -106,79 +180,88 @@
 
     <!-- Include Vis.js -->
     <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <!-- Include MDB JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/7.3.2/mdb.min.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 
-    <script type="text/javascript">
-        function draw() {
-            // Create nodes and edges for Vis.js network
-            const nodes = new vis.DataSet([
-                { id: 1, label: 'Node 1' },
-                { id: 2, label: 'Node 2' },
-                { id: 3, label: 'Node 3' },
-                { id: 4, label: 'Node 4' },
-                { id: 5, label: 'Node 5' }
-            ]);
+    <script>
+        let network;
 
-            const edges = new vis.DataSet([
-                { from: 1, to: 3, arrows: 'to' },
-                { from: 1, to: 2, arrows: 'to' },
-                { from: 2, to: 4, arrows: 'to' },
-                { from: 2, to: 5, arrows: 'to' }
-            ]);
+        function draw(data) {
+            const nodes = new vis.DataSet(data.nodes);
+            const edges = new vis.DataSet(data.edges);
 
-            // Create a network
             const container = document.getElementById('viz');
-            const data = {
-                nodes: nodes,
-                edges: edges
-            };
             const options = {
                 edges: {
                     arrows: {
-                        to: { enabled: true, scaleFactor: 1.2 } // Arrows on the 'to' side of the edge
+                        to: { enabled: true, scaleFactor: 1.2 }
                     },
-                    color: 'lightblue',
+                    color: '#007bff',
                     smooth: {
                         type: 'dynamic'
                     }
+                },
+                nodes: {
+                    color: {
+                        border: '#007bff',
+                        background: '#ffffff',
+                        highlight: {
+                            border: '#0056b3',
+                            background: '#f0f4f8'
+                        }
+                    },
+                    font: {
+                        color: '#343a40'
+                    }
                 }
             };
-            const network = new vis.Network(container, data, options);
+            network = new vis.Network(container, { nodes, edges }, options);
         }
 
-        function sendMessage() {
+        function fetchGraphData() {
+            return fetch('http://127.0.0.1:8000/graph_data')
+                .then(response => response.json())
+                .catch(error => {
+                    console.error('Error fetching graph data:', error);
+                    return { nodes: [], edges: [] }; // Return empty data on error
+                });
+        }
+
+        async function sendMessage() {
             const messageInput = document.getElementById('chatInput');
             const messagesContainer = document.getElementById('chatMessages');
+            const loadingSpinner = document.getElementById('loadingSpinner');
 
             if (messageInput.value.trim() !== "") {
-                // Append user's message
-                const userMessage = document.createElement('p');
-                userMessage.textContent = `You: ${messageInput.value}`;
-                userMessage.style.textAlign = 'right';
+                const userMessage = document.createElement('div');
+                userMessage.className = 'chat-message';
+                userMessage.innerHTML = `<div class="card">
+                                             <p class="mb-0">You: ${messageInput.value}</p>
+                                         </div>`;
                 messagesContainer.appendChild(userMessage);
 
-                // Simulate a response from the other person
-                setTimeout(() => {
-                    const responseMessage = document.createElement('p');
-                    responseMessage.textContent = `Other Person: ${generateResponse()}`;
-                    responseMessage.style.textAlign = 'left';
-                    messagesContainer.appendChild(responseMessage);
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                }, 1000); // Simulate a 1 second delay for the response
+                // Show loading spinner
+                loadingSpinner.style.display = 'block';
 
+                try {
+                    // Fetch graph data from API
+                    const graphData = await fetchGraphData();
+                    draw(graphData);
+                } catch (error) {
+                    console.error('Error updating graph:', error);
+                } finally {
+                    // Hide loading spinner
+                    loadingSpinner.style.display = 'none';
+                }
+
+                // Clear the input field
                 messageInput.value = "";
-            }
-        }
 
-        function generateResponse() {
-            const responses = [
-                "Hello! How can I help you today?",
-                "I'm here to assist with your queries.",
-                "Can you please provide more details?",
-                "Sure, I can help with that.",
-                "What else would you like to know?"
-            ];
-            const randomIndex = Math.floor(Math.random() * responses.length);
-            return responses[randomIndex];
+                // Scroll to the bottom
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
         }
     </script>
 </body>
