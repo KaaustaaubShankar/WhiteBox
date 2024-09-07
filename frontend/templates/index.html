@@ -309,15 +309,17 @@
         }
 
         function fetchSummary(nodeId) {
-            fetch(`/getSummaries?id=${nodeId}`)
+            fetch(`http://127.0.0.1:8000/getSummaries?id=${nodeId}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
                     }
                     return response.json();
+
                 })
                 .then(data => {
-                    document.getElementById('summaryContent').textContent = data.summary;
+                    console.log(data)
+                    document.getElementById('summaryContent').textContent = data.summary.result;
                 })
                 .catch(error => {
                     console.error('Error fetching summary:', error);
@@ -347,7 +349,7 @@
             const graphData = await fetchGraphData(messageInput.value);
 
             // Check if graphData is valid
-            if (graphData && graphData.data) {
+            if (graphData) {
                 // Fetch and draw the graph
                 draw(convertToVisData(graphData.data));
 
