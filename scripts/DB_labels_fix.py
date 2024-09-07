@@ -3,9 +3,9 @@ from neo4j import GraphDatabase
 
 LABELS_QUERY="CALL db.labels() YIELD label RETURN label"
 
-uri = "bolt://localhost:7687"  
-username = "neo4j"         
-password = "Security.4u"  
+uri = "INSTANCE_URI"  
+username = "USERNAME"         
+password = "PASSWORD"  
 driver = GraphDatabase.driver(uri, auth=(username, password))
 
 def checkUnderscore(word):
