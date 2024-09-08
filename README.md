@@ -9,3 +9,5 @@ Whitebox bridges the gap between AI and human reasoning by transforming credible
 
 In high-stakes environments like healthcare, law, and finance, the black-box nature of traditional AI models creates trust and ethical barriers. Whitebox addresses this by making the AI’s decision-making process fully visible and understandable, allowing users to see exactly how conclusions were reached. This transparency ensures that the AI can be confidently applied to areas where explainability and ethics are non-negotiable. By making information more accessible, actionable, and ethical, Whitebox is unlocking AI’s potential to transform industries that demand responsible, transparent technology.
 
+![image](https://github.com/user-attachments/assets/9891edb3-3429-47fc-a80a-93a5b4ef10c1)
+
